@@ -1,48 +1,214 @@
 import argparse
 import json
+import re
 from pathlib import Path
 from typing import Any
-from llm_sdk import Small_LLM_Model
 
-def load_json_file(file_path: Path) -> Any:
+JsonValue = (
+    dict[str, "JsonValue"]
+    | list["JsonValue"]
+    | str
+    | int
+    | float
+    | bool
+    | None
+    )
+
+# 👉 JSON：
+# 没有显式类型定义（implicit typing）
+# 👉 Python：
+# 需要显式类型（type hints）来检查代码
+# 👉 所以你写的：
+# JsonValue = ...
+# 其实是在：
+# ✅ 用 Python 模拟 JSON 的类型系统
+# ✅ 让 mypy 能检查
+# ✅ 满足 42 项目要求
+
+# ✔ null（JSON） = 数据的一部分（合法值）
+# ✔ None（Python） =
+#     ① 数据里的空值（对应 null）
+#     ② 程序员用来表示“没有返回 / 出错”（一种约定）
+
+
+def load_json(path: str) -> JsonValue | None:
+    """Read a JSON file and return its content."""
     try:
-        with file_path.open("r", endcoding="utf-8") as file:
+        with open(path, "r", encoding="utf-8") as file:
             return json.load(file)
     except FileNotFoundError:
-        raise FileNotFoundError(f"File not found: {file_path}")
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"Invalid JSON in file {file_path}: {exc}") from exc
+        print(f"Error: file not found: {path}")
+    except PermissionError:
+        print(f"")
+    except UnicodeDecodeError:
+        print(f"")
+    except json.JSONDecodeError:
+        print(f"Error: invalid JSON file: {path}")
+    return None
+
+# FileNotFoundError
+# = 文件都没找到
+# 先保证文件存在
+
+# UnicodeDecodeError
+# = 文件找到了，但 bytes 不能按 UTF-8 变成文字
+# encoding="utf-8"：
+# 告诉 Python：用全球标准方式解释文本，避免乱码和报错
+# 再保证能用 UTF-8 读
+
+# JSONDecodeError
+# = 文字读出来了，但不是合法 JSON
+# JSONDecodeError: Python 在解析 JSON 时失败（decode 失败）
+# 本质原因（一句话）: 👉 文件内容不是“合法 JSON”
+# 再保证是 valid JSON
+
+# ValidationError
+# = JSON 合法，但内容不符合你项目要求
+# 再保证符合 function_definitions / output schema
 
 
-def save_json_file(file_path: Path, data: Any) -> None:
-    file_path.parent.mkdir(parents=True, exist_ok=True)
-    with file_path.open("w", encoding="utf-8") as file:
-        json.dump(data, file, indent=2, ensure_ascii=False)
+def extract_numbers(prompt: str) -> list[float]:
+    """Extract numbers from a prompt."""
+    matches = re.findall(r"-?\d+(?:\.\d+)?", prompt)
+    return [float(match) for match in matches]
 
-def build_prompt(functions: list[dict[str, Any]], user_prompt: str) -> str:
-    return f"""
-You are a function-calling system.
 
-Available functions:
-{json.dumps(functions, indent=2, ensure_ascii=False)}
+def extract_quoted_string(prompt: str) -> str:
+    """Extract text inside single quotes."""
+    matches = re.findall(r"'([^']*)'", prompt)
+    if matches:
+        return [match for match in matches]
+    return ""
 
-User request:
-{user_prompt}
 
-Return ONLY a valid JSON object with exactly this format:
-{{
-    "name": "fcuntion_name"
-    "parameters": {{
-        "parameter1": "value"
-    }}
-}}
+def make_empty_result(prompt: str) -> dict[str, Any]:
+    """Create an empty fallback result."""
+    return {
+        "prompt": prompt,
+        "name": "",
+        "parameters": {},
+    }
 
-Rules:
-- Choose exactly one function from the avialable functions.
-- Use the exact function name.
-- Use the exact parameter names from the function definition.
-- Use correct parameter types.
-- Return JSON only.
-- Do not include markdown.
-- Do not include explanations.
-""".strip()
+
+def choose_function(
+        prompt: str,
+        functions: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Choose a function and extract parameters using simple rules."""
+    lower_prompt = prompt.lower()
+    for function in functions:
+        name = str(function.get("name", ""))
+        if ("add" in name or "sum" in name) and (
+            "sum" in lower_prompt or "add" in lower_prompt
+        ):
+            numbers = extract_numbers(prompt)
+            return {
+                "prompt": prompt,
+                "name": name,
+                "parameters": {
+                    "a": numbers[0] if len(numbers) > 0 else 0.0,
+                    "b": numbers[1] if len(numbers) > 1 else 0.0
+                }
+            }
+
+        if "greet" in name and "greet" in lower_prompt:
+            person_name = re.search(r"greet\s+([a-zA-Z](?:\s+[a-zA-Z]+)*)",
+                                    prompt, re.IGNORECASE)
+            # \d+: 一个或多个数字
+            # (...)*: 这个“组”可以重复 0 次或多次
+            # (...)	分组
+            # (?:...)	分组但不捕获
+            return {
+                "prompt": prompt,
+                "name": name,
+                "parameters": {
+                    "name": person_name
+                }
+            }
+
+        if "reverse" in name and "reverse" in lower_prompt:
+            return {
+                "prompt": prompt,
+                "name": name,
+                "parameters": {
+                    "s": extract_quoted_string(prompt)
+                }
+            }
+    return make_empty_result(prompt)
+
+
+def parse_tests(data: JsonValue) -> list[dict[str, str]]:
+    """Validate and normalize test prompts."""
+    if not isinstance(data, list):
+        return []
+    tests: list[dict[str, str]] = []
+    for item in data:
+        if isinstance(item, dict):
+            prompt = item.get("prompt")
+            if isinstance(prompt, str):
+                tests.append({"prompt": prompt})
+    return tests
+
+
+def parse_functions(data: JsonValue) -> list[dict[str, Any]]:
+    """Validate and normalize function definitions."""
+    if not isinstance(data, list):
+        return []
+    functions: list[dict[str, Any]] = []
+    for item in data:
+        if isinstance(item, dict):
+            functions.append(item)
+    return functions
+
+
+# parse_tests → 只需要 prompt → 做“数据清洗”
+# parse_functions → 需要完整结构 → 直接保留
+# schema 必须完整（subject 要求）
+# 函数	处理方式	原因
+# parse_tests	重建 dict	只需要 prompt + 清洗
+# parse_functions	保留 item	结构复杂 + 必须完整
+# tests = data（可以过滤、简化）
+# functions = schema（必须完整、不能改）
+
+def write_json(path: str, data: list[dict[str, Any]]) -> None:
+    """Write JSON output to a file."""
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as file:
+        json.dump(data, file, indent=2)
+    print(f"Output written to {output_path}")
+
+    # encoding = UTF-8 是规则
+    # read  → 用这个规则 decode
+    # write → 用这个规则 encode
+
+    # json.dump(data, file, indent=2)
+    # Python对象 → JSON字符串 → 写入文件
+    # data (Python list/dict)
+    # ↓
+    # json.dump
+    # ↓
+    # JSON字符串
+    # ↓
+    # file.write
+    # ↓
+    # 磁盘文件（.json）
+
+
+def main() -> None:
+    """Run the first simple version of the project."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--functions_definition",
+        default="data/input/functions_definition.json"
+    )
+    parser.add_argument(
+        "--input",
+        default="data/input/function_calling_tests.json"
+    )
+    parser.add_argument(
+        "--output",
+        default="data/output/function_calling_results.json"
+    )
+
+    args = parser.parse_args()
