@@ -3,6 +3,14 @@ import json
 import re
 from pathlib import Path
 from typing import Any, cast
+from pydantic import BaseModel
+
+
+class FunctionCall(BaseModel):
+    prompt: str
+    name: str
+    parameters: dict[str, Any]
+
 
 JsonValue = (
     dict[str, "JsonValue"]
@@ -81,9 +89,12 @@ def extract_numbers(prompt: str) -> list[float]:
 
 def extract_quoted_string(prompt: str) -> str:
     """Extract text inside single quotes."""
-    matches = re.findall(r"'([^']*)'", prompt)
-    if matches:
-        return matches[0]
+    match = re.search(r"'([^']*)'", prompt)
+    if match is None:
+        return ""
+    value = match.group(1)
+    if isinstance(value, str):
+        return value
     return ""
 
 
@@ -103,19 +114,19 @@ def extract_greet_name(prompt: str) -> str:
     # match.group(1)    → "Alice Smith"
 
 
-def make_empty_result(prompt: str) -> dict[str, Any]:
+def make_empty_result(prompt: str) -> FunctionCall:
     """Create an empty fallback result."""
-    return {
-        "prompt": prompt,
-        "name": "",
-        "parameters": {},
-    }
+    return FunctionCall(
+        prompt=prompt,
+        name="",
+        parameters={},
+    )
 
 
 def choose_function(
     prompt: str,
     functions: list[dict[str, Any]],
-) -> dict[str, Any]:
+) -> FunctionCall:
     """Choose a function and extract parameters using simple rules."""
     lower_prompt = prompt.lower()
     for function in functions:
@@ -124,14 +135,14 @@ def choose_function(
             "sum" in lower_prompt or "add" in lower_prompt
         ):
             numbers = extract_numbers(prompt)
-            return {
-                "prompt": prompt,
-                "name": name,
-                "parameters": {
+            return FunctionCall(
+                prompt=prompt,
+                name=name,
+                parameters={
                     "a": numbers[0] if len(numbers) > 0 else 0.0,
                     "b": numbers[1] if len(numbers) > 1 else 0.0,
-                }
-            }
+                },
+            )
 
         if "greet" in name and "greet" in lower_prompt:
             person_name = extract_greet_name(prompt)
@@ -141,22 +152,20 @@ def choose_function(
             # (...)*: 这个“组”可以重复 0 次或多次
             # (...)	分组
             # (?:...) 分组但不捕获
-            return {
-                "prompt": prompt,
-                "name": name,
-                "parameters": {
-                    "name": person_name,
-                }
-            }
+            return FunctionCall(
+                prompt=prompt,
+                name=name,
+                parameters={"name": person_name},
+            )
 
         if "reverse" in name and "reverse" in lower_prompt:
-            return {
-                "prompt": prompt,
-                "name": name,
-                "parameters": {
+            return FunctionCall(
+                prompt=prompt,
+                name=name,
+                parameters={
                     "s": extract_quoted_string(prompt),
-                }
-            }
+                },
+            )
     return make_empty_result(prompt)
 
 
@@ -193,12 +202,13 @@ def parse_functions(data: JsonValue) -> list[dict[str, Any]]:
 # tests = data（可以过滤、简化）
 # functions = schema（必须完整、不能改）
 
-def write_json(path: str, data: list[dict[str, Any]]) -> None:
+
+def write_json(path: str, data: list[FunctionCall]) -> None:
     """Write JSON output to a file."""
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as file:
-        json.dump(data, file, indent=2)
+        json.dump([item.model_dump() for item in data], file, indent=2)
     print(f"Output written to {output_path}")
 
     # encoding = UTF-8 是规则
@@ -246,7 +256,7 @@ def main() -> None:
     functions = parse_functions(raw_functions)
     tests = parse_tests(raw_tests)
 
-    results: list[dict[str, Any]] = []
+    results: list[FunctionCall] = []
 
     for test in tests:
         prompt = test["prompt"]
@@ -258,3 +268,66 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+# v1: 
+
+
+# 1. 用 pydantic（BaseModel）
+# from pydantic import BaseModel
+
+# class FunctionCall(BaseModel):
+#     prompt: str
+#     name: str
+#     parameters: dict[str, Any]
+
+# ✔ 自动检查字段是否存在
+# ✔ 自动检查类型
+# ✔ evaluator 要求
+
+# 🧪 错误会被抓住
+# FunctionCall(
+#     promt=prompt,   # ❌ 拼错
+# )
+
+# 👉 会报错：
+
+# ValidationError
+
+# dict = 随便写
+# BaseModel = 强制规范结构
+
+
+
+# 2. BaseModel
+#     ↓ .model_dump()
+#     dict
+#     ↓ json.dump()
+#     JSON 文件
+
+# 为什么不能直接 dump BaseModel？
+# json.dump(obj, file)
+
+# 👉 会报错：
+
+# TypeError: not JSON serializable
+
+# 👉 因为：
+
+# json 只认识 dict / list / str / int
+# 不认识 pydantic 对象
+
+# BaseModel = 定义结构
+# model_dump = 变成 dict
+# json.dump = 写到文件
+
+# 3. 场景	能不能验证	用什么
+# json.load	❌ 不能	cast
+# regex group	✔ 能	isinstance
+
+
+# 4. 什么是 regex？ re.search/findall(pattern(r"...), text)
+# regex = 一种用“规则字符串”去匹配文本的方法
+
+# 👉 中文：
+
+# 正则表达式 = 用模式（pattern）找字符串
