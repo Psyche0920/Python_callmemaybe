@@ -269,8 +269,7 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 
-# v1: 
-
+# v1:
 
 # 1. 用 pydantic（BaseModel）
 # from pydantic import BaseModel
@@ -295,8 +294,6 @@ if __name__ == "__main__":
 
 # dict = 随便写
 # BaseModel = 强制规范结构
-
-
 
 # 2. BaseModel
 #     ↓ .model_dump()
@@ -323,7 +320,6 @@ if __name__ == "__main__":
 # 3. 场景	能不能验证	用什么
 # json.load	❌ 不能	cast
 # regex group	✔ 能	isinstance
-
 
 # 4. 什么是 regex？ re.search/findall(pattern(r"...), text)
 # regex = 一种用“规则字符串”去匹配文本的方法
