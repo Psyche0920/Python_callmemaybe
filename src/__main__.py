@@ -2,7 +2,7 @@ import argparse
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 JsonValue = (
     dict[str, "JsonValue"]
@@ -12,7 +12,7 @@ JsonValue = (
     | float
     | bool
     | None
-    )
+)
 
 # 👉 JSON：
 # 没有显式类型定义（implicit typing）
@@ -24,6 +24,7 @@ JsonValue = (
 # ✅ 用 Python 模拟 JSON 的类型系统
 # ✅ 让 mypy 能检查
 # ✅ 满足 42 项目要求
+# "JsonValue" = 防止类型还没定义时报错
 
 # ✔ null（JSON） = 数据的一部分（合法值）
 # ✔ None（Python） =
@@ -35,13 +36,18 @@ def load_json(path: str) -> JsonValue | None:
     """Read a JSON file and return its content."""
     try:
         with open(path, "r", encoding="utf-8") as file:
-            return json.load(file)
+            data = json.load(file)
+            return cast(JsonValue, data)
+        # cast = 告诉类型检查器（mypy）：“相信我，这个值就是这个类型”
+        # 函数	方向	用途
+        # load	文件 → Python	读取
+        # dump	Python → 文件	写入
     except FileNotFoundError:
         print(f"Error: file not found: {path}")
     except PermissionError:
-        print(f"")
+        print(f"Error: permission denied: {path}")
     except UnicodeDecodeError:
-        print(f"")
+        print(f"Error: file is not valid UTF-8 {path}")
     except json.JSONDecodeError:
         print(f"Error: invalid JSON file: {path}")
     return None
@@ -77,8 +83,24 @@ def extract_quoted_string(prompt: str) -> str:
     """Extract text inside single quotes."""
     matches = re.findall(r"'([^']*)'", prompt)
     if matches:
-        return [match for match in matches]
+        return matches[0]
     return ""
+
+
+def extract_greet_name(prompt: str) -> str:
+    """Extract the name after the word greet."""
+    match = re.search(
+        r"greet\s+([a-zA-Z]+(?:\s+[a-zA-Z]+)*)",
+        prompt,
+        re.IGNORECASE,
+    )
+    if match is None:
+        return ""
+    return cast(str, match.group(1))
+    # greet\s+([a-zA-Z]+(?:\s+[a-zA-Z]+)*)
+    #         ↑ 这个括号是 group(1)
+    # match.group()     → "Greet Alice Smith"
+    # match.group(1)    → "Alice Smith"
 
 
 def make_empty_result(prompt: str) -> dict[str, Any]:
@@ -91,8 +113,8 @@ def make_empty_result(prompt: str) -> dict[str, Any]:
 
 
 def choose_function(
-        prompt: str,
-        functions: list[dict[str, Any]],
+    prompt: str,
+    functions: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Choose a function and extract parameters using simple rules."""
     lower_prompt = prompt.lower()
@@ -107,22 +129,23 @@ def choose_function(
                 "name": name,
                 "parameters": {
                     "a": numbers[0] if len(numbers) > 0 else 0.0,
-                    "b": numbers[1] if len(numbers) > 1 else 0.0
+                    "b": numbers[1] if len(numbers) > 1 else 0.0,
                 }
             }
 
         if "greet" in name and "greet" in lower_prompt:
-            person_name = re.search(r"greet\s+([a-zA-Z](?:\s+[a-zA-Z]+)*)",
-                                    prompt, re.IGNORECASE)
+            person_name = extract_greet_name(prompt)
             # \d+: 一个或多个数字
+            # \s+         → 一个或多个空格
+            # [] = 字符集合（character class）
             # (...)*: 这个“组”可以重复 0 次或多次
             # (...)	分组
-            # (?:...)	分组但不捕获
+            # (?:...) 分组但不捕获
             return {
                 "prompt": prompt,
                 "name": name,
                 "parameters": {
-                    "name": person_name
+                    "name": person_name,
                 }
             }
 
@@ -131,7 +154,7 @@ def choose_function(
                 "prompt": prompt,
                 "name": name,
                 "parameters": {
-                    "s": extract_quoted_string(prompt)
+                    "s": extract_quoted_string(prompt),
                 }
             }
     return make_empty_result(prompt)
@@ -200,15 +223,38 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--functions_definition",
-        default="data/input/functions_definition.json"
+        default="data/input/functions_definition.json",
     )
     parser.add_argument(
         "--input",
-        default="data/input/function_calling_tests.json"
+        default="data/input/function_calling_tests.json",
     )
     parser.add_argument(
         "--output",
-        default="data/output/function_calling_results.json"
+        default="data/output/function_calling_results.json",
     )
 
     args = parser.parse_args()
+    # argparse 是一个模块（库）
+    # ArgumentParser 是这个模块里的一个类（class）, ArgumentParser = 参数解析器（专门处理终端输入）
+    # add_argument = 定义可以输入什么
+    # parse_args   = 读取用户输入
+    # args.xxx     = 使用这个值
+
+    raw_functions = load_json(args.functions_definition)
+    raw_tests = load_json(args.input)
+    functions = parse_functions(raw_functions)
+    tests = parse_tests(raw_tests)
+
+    results: list[dict[str, Any]] = []
+
+    for test in tests:
+        prompt = test["prompt"]
+        result = choose_function(prompt, functions)
+        results.append(result)
+
+    write_json(str(args.output), results)
+
+
+if __name__ == "__main__":
+    main()
