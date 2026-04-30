@@ -269,61 +269,24 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 
-# v1:
+# v2:
 
-# 1. 用 pydantic（BaseModel）
-# from pydantic import BaseModel
+# ✔ JSON 读取（load_json）
+# ✔ 数据清洗（parse_tests / parse_functions）
+# ✔ rule-based function selection (（if + regex）)=> subject 要求：LLM + constrained decoding
+# ✔ regex 参数提取
+# ✔ 输出 JSON
+# ✔ argparse CLI
+# ✔ pydantic 结构
+# ✔ makefile
 
-# class FunctionCall(BaseModel):
-#     prompt: str
-#     name: str
-#     parameters: dict[str, Any]
-
-# ✔ 自动检查字段是否存在
-# ✔ 自动检查类型
-# ✔ evaluator 要求
-
-# 🧪 错误会被抓住
-# FunctionCall(
-#     promt=prompt,   # ❌ 拼错
-# )
-
-# 👉 会报错：
-
-# ValidationError
-
-# dict = 随便写
-# BaseModel = 强制规范结构
-
-# 2. BaseModel
-#     ↓ .model_dump()
-#     dict
-#     ↓ json.dump()
-#     JSON 文件
-
-# 为什么不能直接 dump BaseModel？
-# json.dump(obj, file)
-
-# 👉 会报错：
-
-# TypeError: not JSON serializable
-
-# 👉 因为：
-
-# json 只认识 dict / list / str / int
-# 不认识 pydantic 对象
-
-# BaseModel = 定义结构
-# model_dump = 变成 dict
-# json.dump = 写到文件
-
-# 3. 场景	能不能验证	用什么
-# json.load	❌ 不能	cast
-# regex group	✔ 能	isinstance
-
-# 4. 什么是 regex？ re.search/findall(pattern(r"...), text)
-# regex = 一种用“规则字符串”去匹配文本的方法
-
-# 👉 中文：
-
-# 正则表达式 = 用模式（pattern）找字符串
+# now: ✔ logits → token → decode
+# "{"
+#    ↓ encode
+# token ids
+#    ↓ model
+# logits（所有可能字符）
+#    ↓ argmax
+# 选一个 token
+#    ↓ decode
+# 变成字符
