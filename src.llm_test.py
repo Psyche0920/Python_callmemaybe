@@ -1,53 +1,51 @@
+import math
+
 from llm_sdk import Small_LLM_Model
 import torch
 
-model = Small_LLM_Model()
+def main() -> None:
+    """Test one step of constrained decoding."""
 
-current_text = "{"
+    model = Small_LLM_Model()
 
-# 1️⃣ encode（文本 → token）
-input_ids = model.encode(current_text)[0].tolist()
-# model.encode("{") => tensor([[90]])
-# [[90]]👉 外面一层是 batch（批次）, 可以一次处理多个句子
-# ["hello", "world"]
-# 所以输出结构必须是：
-# [
-#   [tokens of sentence 1],
-#   [tokens of sentence 2]
-# ]
+    current_text = "{"
 
-#  2️⃣ 模型（token → logits）
-logits = model.get_logits_from_input_ids(input_ids)
-
-# token 0: "a"     score = 1.2
-# token 1: "b"     score = 0.5
-# token 2: "\""    score = 8.9
-# token 3: "}"     score = 2.1
-# token 4: "\n"    score = 3.0
-
-# 所以模型认为下一个最可能是双引号。
+    # 1️⃣ encode（文本 → token）
+    input_ids = model.encode(current_text)[0].tolist()
 
 
-# 3️⃣ 选最大概率 token
-next_token_id = torch.argmax(torch.tensor(logits)).item()
+    #  2️⃣ 模型（token → logits）
+    logits = model.get_logits_from_input_ids(input_ids)
 
-# torch.tensor(logits) -> tensor
+    # token 0: "a"     score = 1.2
+    # token 1: "b"     score = 0.5
+    # token 2: "\""    score = 8.9
+    # token 3: "}"     score = 2.1
+    # token 4: "\n"    score = 3.0
 
-# torch.argmax(tensor)-> tensor(index) 
-# e.g. logits = [1.2, 0.5, 8.9, 2.1, 3.0]
-# return tensor(2)
-
-# .item() 是 PyTorch tensor 的一个方法。
-# .item() = 把“只有一个值的 tensor”变成 Python 的普通数值
-# tensor(2)= 2
-
-# 4️⃣ decode（token → 文本）
-next_token_text = model.decode([next_token_id])
+    # 所以模型认为下一个最可能是双引号。
 
 
-print("current:", current_text)
-print("next_token_id:", next_token_id)
-print("decoded:", repr(next_token_text))
+    # 3️⃣ 选最大概率 token
+    next_token_id = torch.argmax(torch.tensor(logits)).item()
+
+    # torch.tensor(logits) -> tensor
+
+    # torch.argmax(tensor)-> tensor(index) 
+    # e.g. logits = [1.2, 0.5, 8.9, 2.1, 3.0]
+    # return tensor(2)
+
+    # .item() 是 PyTorch tensor 的一个方法。
+    # .item() = 把“只有一个值的 tensor”变成 Python 的普通数值
+    # tensor(2)= 2
+
+    # 4️⃣ decode（token → 文本）
+    next_token_text = model.decode([next_token_id])
+
+
+    print("current:", current_text)
+    print("next_token_id:", next_token_id)
+    print("decoded:", repr(next_token_text))
 # repr() = 把内容用“程序员能看清的形式”显示出来。会显示：'\n'
 
 # text->(token ids)->list->tensor-> logits(list[float])->argmax(tensor)->int->tensor or list[int]-> text
