@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 from typing import Any, cast
 from pydantic import BaseModel
+from llm_sdk import Small_LLM_Model
 
 
 class FunctionCall(BaseModel):
@@ -22,23 +23,6 @@ JsonValue = (
     | None
 )
 
-# 👉 JSON：
-# 没有显式类型定义（implicit typing）
-# 👉 Python：
-# 需要显式类型（type hints）来检查代码
-# 👉 所以你写的：
-# JsonValue = ...
-# 其实是在：
-# ✅ 用 Python 模拟 JSON 的类型系统
-# ✅ 让 mypy 能检查
-# ✅ 满足 42 项目要求
-# "JsonValue" = 防止类型还没定义时报错
-
-# ✔ null（JSON） = 数据的一部分（合法值）
-# ✔ None（Python） =
-#     ① 数据里的空值（对应 null）
-#     ② 程序员用来表示“没有返回 / 出错”（一种约定）
-
 
 def load_json(path: str) -> JsonValue | None:
     """Read a JSON file and return its content."""
@@ -46,10 +30,6 @@ def load_json(path: str) -> JsonValue | None:
         with open(path, "r", encoding="utf-8") as file:
             data = json.load(file)
             return cast(JsonValue, data)
-        # cast = 告诉类型检查器（mypy）：“相信我，这个值就是这个类型”
-        # 函数	方向	用途
-        # load	文件 → Python	读取
-        # dump	Python → 文件	写入
     except FileNotFoundError:
         print(f"Error: file not found: {path}")
     except PermissionError:
@@ -60,25 +40,29 @@ def load_json(path: str) -> JsonValue | None:
         print(f"Error: invalid JSON file: {path}")
     return None
 
-# FileNotFoundError
-# = 文件都没找到
-# 先保证文件存在
 
-# UnicodeDecodeError
-# = 文件找到了，但 bytes 不能按 UTF-8 变成文字
-# encoding="utf-8"：
-# 告诉 Python：用全球标准方式解释文本，避免乱码和报错
-# 再保证能用 UTF-8 读
+def parse_tests(data: JsonValue) -> list[dict[str, str]]:
+    """Validate and normalize test prompts."""
+    if not isinstance(data, list):
+        return []
+    tests: list[dict[str, str]] = []
+    for item in data:
+        if isinstance(item, dict):
+            prompt = item.get("prompt")
+            if isinstance(prompt, str):
+                tests.append({"prompt": prompt})
+    return tests
 
-# JSONDecodeError
-# = 文字读出来了，但不是合法 JSON
-# JSONDecodeError: Python 在解析 JSON 时失败（decode 失败）
-# 本质原因（一句话）: 👉 文件内容不是“合法 JSON”
-# 再保证是 valid JSON
 
-# ValidationError
-# = JSON 合法，但内容不符合你项目要求
-# 再保证符合 function_definitions / output schema
+def parse_functions(data: JsonValue) -> list[dict[str, Any]]:
+    """Validate and normalize function definitions."""
+    if not isinstance(data, list):
+        return []
+    functions: list[dict[str, Any]] = []
+    for item in data:
+        if isinstance(item, dict):
+            functions.append(item)
+    return functions
 
 
 def extract_numbers(prompt: str) -> list[float]:
@@ -87,32 +71,94 @@ def extract_numbers(prompt: str) -> list[float]:
     return [float(match) for match in matches]
 
 
-def extract_quoted_string(prompt: str) -> str:
-    """Extract text inside single quotes."""
-    match = re.search(r"'([^']*)'", prompt)
-    if match is None:
-        return ""
-    value = match.group(1)
-    if isinstance(value, str):
-        return value
-    return ""
+def extract_quoted_strings(prompt: str) -> list[str]:
+    """Extract all texts inside single or double quotes."""
+    return re.findall(r"['\"]([^'\"]*)['\"]", prompt)
+
+
+def extract_first_quoted_string(prompt: str) -> str:
+    """Extract the first quoted string."""
+    quoted = extract_quoted_strings(prompt)
+    return quoted[0] if quoted else ""
+    # ???
 
 
 def extract_greet_name(prompt: str) -> str:
     """Extract the name after the word greet."""
     match = re.search(
-        r"greet\s+([a-zA-Z]+(?:\s+[a-zA-Z]+)*)",
+        r"greet\s+([a-zA-Z]+(?:\s+[a-zA-Z]+)*)",  # * >=0, + >= 1
         prompt,
         re.IGNORECASE,
     )
-    if match is None:
-        return ""
-    return cast(str, match.group(1))
+    return cast(str, match.group(1)) if match else ""
     # greet\s+([a-zA-Z]+(?:\s+[a-zA-Z]+)*)
     #         ↑ 这个括号是 group(1)
     # match.group()     → "Greet Alice Smith"
     # match.group(1)    → "Alice Smith"
 
+
+def score_candidate_name(
+        model: Small_LLM_Model,
+        context: str,
+        candidate_name: str,
+) -> float:
+    """Score a function name token by token under a fixed context."""
+    current = context
+    total = 0.0
+    candidate_ids = model.encode(candidate_name)[0].tolist()
+    
+    for token_id in candidate_ids:
+        input_ids = model.encode(current)[0].tolist()
+        logits = model.get_logits_from_input_ids(input_ids)
+        total += logits[token_id]
+        current += model.decode([token_id])
+    return total
+
+# 🎯 关键总结（帮你锁死）
+
+# 👉 vocab size：
+
+# ✔ 固定 → 决定 logits 长度
+
+# 👉 logits：
+
+# ✔ 每次根据 context 重新计算
+# ✔ 给“所有 token”打分
+
+# 👉 你的代码：
+
+# ✔ 一步步验证 candidate_name 是否“符合模型习惯”
+
+
+def choose_function_name_with_llm(
+        model: Small_LLM_Model,
+        prompt: str, 
+        functions: list[dict[str, Any]],
+) -> str:
+    """Choose the best function name using LLM logits."""
+    if not functions:
+        return ""
+    options = "\n".join(
+        f"- {function.get('name')}: {function.get('description', '')}"
+        for function in functions
+    )
+    context = (
+        "Choose the best function for the user request.\n"
+        f"Available functions:\n{options}\n"
+        f"User request: {prompt}\n"
+        "Best function name: "
+    )
+    best_name = ""
+    best_score = float("-inf")
+
+    for function in functions:
+        name = str(function.get("name", ""))
+        score = score_candidate_name(model, context, name)
+
+        if score > best_score:
+            best_score = score
+            best_name = name
+    return best_name
 
 def make_empty_result(prompt: str) -> FunctionCall:
     """Create an empty fallback result."""
@@ -121,6 +167,19 @@ def make_empty_result(prompt: str) -> FunctionCall:
         name="",
         parameters={},
     )
+
+
+def score_text(model: Small_LLM_Model, text: str) -> float:
+    """Score how likely a text is under the model."""
+    ids = model.encode(text)[0].tolist()
+    total = 0.0
+
+    for index in range(1, len(ids)):
+        prefix = ids[:index]
+        target = ids[index]
+        logits = model.get_logits_from_input_ids(prefix)
+        total += logits[target]
+    return total
 
 
 def choose_function(
@@ -168,39 +227,6 @@ def choose_function(
             )
     return make_empty_result(prompt)
 
-
-def parse_tests(data: JsonValue) -> list[dict[str, str]]:
-    """Validate and normalize test prompts."""
-    if not isinstance(data, list):
-        return []
-    tests: list[dict[str, str]] = []
-    for item in data:
-        if isinstance(item, dict):
-            prompt = item.get("prompt")
-            if isinstance(prompt, str):
-                tests.append({"prompt": prompt})
-    return tests
-
-
-def parse_functions(data: JsonValue) -> list[dict[str, Any]]:
-    """Validate and normalize function definitions."""
-    if not isinstance(data, list):
-        return []
-    functions: list[dict[str, Any]] = []
-    for item in data:
-        if isinstance(item, dict):
-            functions.append(item)
-    return functions
-
-
-# parse_tests → 只需要 prompt → 做“数据清洗”
-# parse_functions → 需要完整结构 → 直接保留
-# schema 必须完整（subject 要求）
-# 函数	处理方式	原因
-# parse_tests	重建 dict	只需要 prompt + 清洗
-# parse_functions	保留 item	结构复杂 + 必须完整
-# tests = data（可以过滤、简化）
-# functions = schema（必须完整、不能改）
 
 
 def write_json(path: str, data: list[FunctionCall]) -> None:
