@@ -9,7 +9,7 @@ from llm_sdk import Small_LLM_Model
 
 class FunctionCall(BaseModel):
     prompt: str
-    name: str
+    fn_name: str
     parameters: dict[str, Any]
 
 
@@ -152,81 +152,143 @@ def choose_function_name_with_llm(
     best_score = float("-inf")
 
     for function in functions:
-        name = str(function.get("name", ""))
-        score = score_candidate_name(model, context, name)
+        candidate_name = str(function.get("name", ""))
+        score = score_candidate_name(model, context, candidate_name)
 
         if score > best_score:
             best_score = score
-            best_name = name
+            best_name = candidate_name
     return best_name
 
-def make_empty_result(prompt: str) -> FunctionCall:
-    """Create an empty fallback result."""
-    return FunctionCall(
-        prompt=prompt,
-        name="",
-        parameters={},
-    )
+# Choose the best function...
+# Available functions:
+# - fn_add_numbers: add two numbers
+# - fn_greet: greet a person
+
+# User request: Add 3 and 5
+
+# Best function name:
+# 👉 模型会：
+
+# ✔ 看选项
+# ✔ 看描述
+# ✔ 对比 prompt
+
+# 👉 得出：
+
+# fn_add_numbers ✅
 
 
-def score_text(model: Small_LLM_Model, text: str) -> float:
-    """Score how likely a text is under the model."""
-    ids = model.encode(text)[0].tolist()
-    total = 0.0
-
-    for index in range(1, len(ids)):
-        prefix = ids[:index]
-        target = ids[index]
-        logits = model.get_logits_from_input_ids(prefix)
-        total += logits[target]
-    return total
+def find_function_schema(
+    function_name: str,
+    functions: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Find the function schema by function name.// return the dict object."""
+    for function in functions:
+        if function.get("name") == function_name:
+            return function
+    return None
 
 
-def choose_function(
+def get_parameter_names(function_schema: dict[str, Any]) -> list[str]:
+    """Return parameter names from the function schema."""
+    parameters = function_schema.get("parameters", {})
+    # parameters = {"a": "int", "b": "int"}
+    if not isinstance(parameters, dict):
+        return []
+    return list(parameters.keys())
+    # ["a", "b"]
+
+
+def build_substitute_args(
+    prompt: str,
+    parameter_names: list[str],
+) -> dict[str, Any]:
+    """Build args for regex substitution."""
+    quoted = extract_quoted_strings(prompt)
+    lower = prompt.lower()
+    source_string = quoted[-1] if quoted else ""
+
+    if "numbers" in lower:
+        regex = r"\d+"
+    elif "vowels" in lower:
+        regex = r"[aeiouAEIOU]"
+    elif quoted:
+        regex = re.escape(quoted[0])
+        # re.escape() 是为了防止特殊字符出问题，比如 .、*、?。
+        # 如果没有 numbers / vowels，但有引号，就把第一个引号里的内容当作要匹配的东西。
+    else:
+        regex = ""
+
+    if "asterisks" in lower:
+        replacement = "*"
+    else:
+        match = re.search(r"with\s+([A-Za-z0-9_*]+)", prompt)
+        replacement = match.group(1) if match else ""
+    values = {
+        "source_string": source_string,
+        "regex": regex,
+        "replacement": replacement,
+    }
+    return {name: values.get(name, "") for name in parameter_names}
+
+
+def build_args(
+    prompt: str,
+    function_schema: dict[str, Any],
+) -> dict[str, Any]:
+    """Build function arguments according to the selected schema."""
+    function_name = str(function_schema.get("name", "")).lower()
+    parameter_names = get_parameter_names(function_schema)
+    # ["a", "b"]
+
+    if not parameter_names:
+        return {}
+    
+    if "add" in function_name or "sum" in function_name:
+        numbers = extract_numbers(prompt)
+        return {
+            name: numbers[index] if index < len(numbers) else 0.0
+            for index, name in enumerate(parameter_names)
+        }
+        # {"a": 3, "b": 5}
+    if "square" in function_name or "sqrt" in function_name:
+        numbers = extract_numbers(prompt)
+        return {
+            parameter_names[0]: numbers[0] if numbers else 0.0
+        }
+        # {"a": 144}
+    if "greet" in function_name:
+        return {
+            parameter_names[0]: extract_greet_name(prompt)
+        }
+    # {"a": "Ann"}
+    if "reverse" in function_name:
+        return {
+            parameter_names[0]: extract_first_quoted_string(prompt)
+        }
+    if "substitute" in function_name or "replace" in function_name:
+        return build_substitute_args(prompt, parameter_names)
+    return {name: "" for name in parameter_names}
+
+
+def make_function_call(
+    model: Small_LLM_Model,
     prompt: str,
     functions: list[dict[str, Any]],
 ) -> FunctionCall:
-    """Choose a function and extract parameters using simple rules."""
-    lower_prompt = prompt.lower()
-    for function in functions:
-        name = str(function.get("name", ""))
-        if ("add" in name or "sum" in name) and (
-            "sum" in lower_prompt or "add" in lower_prompt
-        ):
-            numbers = extract_numbers(prompt)
-            return FunctionCall(
-                prompt=prompt,
-                name=name,
-                parameters={
-                    "a": numbers[0] if len(numbers) > 0 else 0.0,
-                    "b": numbers[1] if len(numbers) > 1 else 0.0,
-                },
-            )
+    """Create one valid function-call result."""
+    function_name = choose_function_name_with_llm(model, prompt, functions)
+    function_schema = find_function_schema(function_name, functions)
 
-        if "greet" in name and "greet" in lower_prompt:
-            person_name = extract_greet_name(prompt)
-            # \d+: 一个或多个数字
-            # \s+         → 一个或多个空格
-            # [] = 字符集合（character class）
-            # (...)*: 这个“组”可以重复 0 次或多次
-            # (...)	分组
-            # (?:...) 分组但不捕获
-            return FunctionCall(
-                prompt=prompt,
-                name=name,
-                parameters={"name": person_name},
-            )
-
-        if "reverse" in name and "reverse" in lower_prompt:
-            return FunctionCall(
-                prompt=prompt,
-                name=name,
-                parameters={
-                    "s": extract_quoted_string(prompt),
-                },
-            )
-    return make_empty_result(prompt)
-
+    if function_schema is None:
+        return FunctionCall(prompt=prompt, fn_name="", parameters={})
+    
+    return FunctionCall(
+        prompt=prompt,
+        fn_name=function_name,
+        parameters=build_args(prompt, function_schema),
+    )
 
 
 def write_json(path: str, data: list[FunctionCall]) -> None:
@@ -255,7 +317,7 @@ def write_json(path: str, data: list[FunctionCall]) -> None:
 
 
 def main() -> None:
-    """Run the first simple version of the project."""
+    """Run the function-calling pipeline."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--functions_definition",
@@ -279,14 +341,20 @@ def main() -> None:
 
     raw_functions = load_json(args.functions_definition)
     raw_tests = load_json(args.input)
+
+    if raw_functions is None or raw_tests is None:
+        return
+
     functions = parse_functions(raw_functions)
     tests = parse_tests(raw_tests)
+
+    model = Small_LLM_Model()
 
     results: list[FunctionCall] = []
 
     for test in tests:
         prompt = test["prompt"]
-        result = choose_function(prompt, functions)
+        result = make_function_call(model, prompt, functions)
         results.append(result)
 
     write_json(str(args.output), results)
@@ -295,24 +363,32 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 
-# v2:
 
-# ✔ JSON 读取（load_json）
-# ✔ 数据清洗（parse_tests / parse_functions）
-# ✔ rule-based function selection (（if + regex）)=> subject 要求：LLM + constrained decoding
-# ✔ regex 参数提取
-# ✔ 输出 JSON
-# ✔ argparse CLI
-# ✔ pydantic 结构
-# ✔ makefile
+# 读取命令行参数
 
-# now: ✔ logits → token → decode
-# "{"
-#    ↓ encode
-# token ids
-#    ↓ model
-# logits（所有可能字符）
-#    ↓ argmax
-# 选一个 token
-#    ↓ decode
-# 变成字符
+# --functions_definition
+# --input
+# --output
+# 读取 JSON 文件
+# functions_definition.json：可调用函数 schema
+# function_calling_tests.json：prompt 列表
+# 用 LLM 选择函数
+# 对每个 prompt，把所有 function name 当候选
+# 用 Small_LLM_Model
+# 用 get_logits_from_input_ids() 给每个 function name 打分
+# 选分数最高的函数
+# 根据选中的函数提取参数
+# add：提取两个数字
+# square_root：提取一个数字
+# greet：提取 greet 后面的名字
+# reverse：提取引号里的字符串
+# substitute/regex：提取 source_string / regex / replacement
+
+# 写入 output JSON
+# 每条结果结构是：
+
+# {
+#   "prompt": "...",
+#   "fn_name": "...",
+#   "args": {}
+# }

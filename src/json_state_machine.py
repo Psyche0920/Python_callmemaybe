@@ -147,16 +147,17 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 
-# 👉 这段代码的核心思想是：
+# prompt
+# → LLM 选择 name
+# → 根据 name 找 schema
+# → regex 提取 value
+# → 按 schema 填 parameters
+# → FunctionCall(BaseModel)
+# → json.dump 输出
 
-# ❗ 不用模型自由生成，而是你控制 JSON 结构，只让模型填“字符”
+# 模型：选函数
+# regex：提取参数
+# schema：定义结构
+# 代码：构造 JSON
 
-# 也就是：
-
-# 结构（{ "name": ... }）👉 你写死
-# 内容（name、参数）👉 模型选
-# 但模型也不能乱选 👉 只能从 allowed_chars 里面选
-
-# 👉 这就是：
-
-# 💡 constrained decoding（受限解码）
+# 下一步就是把你现在的 choose_function 升级成：模型选函数名，schema 决定参数名，regex 填参数值。这样就从 demo 变成真正项目逻辑。
