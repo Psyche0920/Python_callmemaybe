@@ -6,11 +6,12 @@ from pathlib import Path
 from typing import Any, cast
 from pydantic import BaseModel
 from llm_sdk import Small_LLM_Model
+from src.json_state_machine import SchemaConstrainedDecoder
 
 
 class FunctionCall(BaseModel):
     prompt: str
-    fn_name: str
+    name: str
     parameters: dict[str, Any]
 
 
@@ -81,11 +82,6 @@ def extract_quoted_strings(prompt: str) -> list[str]:
 # .任意字符
 # *重复 0 次或无限次
 # ? -> non-greedy 能少吃就少吃
-
-def extract_first_quoted_string(prompt: str) -> str:
-    """Extract the first quoted string."""
-    quoted = extract_quoted_strings(prompt)
-    return quoted[0] if quoted else ""
 
 
 def extract_greet_name(prompt: str) -> str:
@@ -174,105 +170,123 @@ def find_function_schema(
     return None
 
 
-def get_parameter_names(function_schema: dict[str, Any]) -> list[str]:
-    """Return parameter names from the function schema."""
-    parameters = function_schema.get("parameters", {})
-    # parameters = {"a": "int", "b": "int"}
-    if not isinstance(parameters, dict):
-        return []
-    return list(parameters.keys())
-    # ["a", "b"]
-
-
-def build_substitute_args(
+def extract_string_parameter(
     prompt: str,
-    parameter_names: list[str],
+    parameter_name: str,
+    quoted: list[str]
 ) -> dict[str, Any]:
-    """Build args for regex substitution."""
-    quoted = extract_quoted_strings(prompt)
+    """Extract a string value using the schema parameter role."""
     lower = prompt.lower()
-    source_string = quoted[-1] if quoted else ""
+    name = parameter_name.lower()
 
-    if "numbers" in lower:
-        regex = r"\d+"
-    elif "vowels" in lower:
-        regex = r"[aeiouAEIOU]"
-    elif quoted:
-        regex = re.escape(quoted[0])
-        # re.escape() 是为了防止特殊字符出问题，比如 .、*、?。
-        # 如果没有 numbers / vowels，但有引号，就把第一个引号里的内容当作要匹配的东西。
-    else:
-        regex = ""
+    if name == "regex":
+        if "numbers" in lower:
+            return r"\d+"
+        elif "vowels" in lower:
+            return r"[aeiouAEIOU]"
+        elif quoted:
+            return re.escape(quoted[0])
+            # “把字符串安全地变成 regex”
+            # re.escape() 是为了防止特殊字符出问题，比如 .、*、?。
+            # 如果没有 numbers / vowels，但有引号，就把第一个引号里的内容当作要匹配的东西。
+        return  ""
 
-    if "asterisks" in lower:
-        replacement = "*"
-    else:
-        match = re.search(r"with\s+['\"]?([A-Za-z0-9_*]+)['\"]?", prompt)
-        replacement = match.group(1) if match else ""
-    values = {
-        "source_string": source_string,
-        "regex": regex,
-        "replacement": replacement,
-    }
-    return {name: values.get(name, "") for name in parameter_names}
+    if name == "replacement":
+        if "asterisks" in lower:
+            return "*"
+        elif "with" in lower and quoted: 
+            if len(quoted) >= 3:
+                return quoted[1]
+            return quoted[0]
+        else:
+            match = re.search(r"with\s+['\"]?([A-Za-z0-9_*]+)['\"]?", prompt)
+            replacement = match.group(1) if match else ""
 
+    if name == "source_string":
+        return quoted[-1] if quoted else ""
+    
+    if name == "s":
+        return quoted[0] if quoted else ""
+    
+    if name == "name":
+        return extract_greet_name(prompt)
+ 
+    return quoted[0] if quoted else ""
 
 def build_args(
     prompt: str,
     function_schema: dict[str, Any],
 ) -> dict[str, Any]:
-    """Build function arguments according to the selected schema."""
-    function_name = str(function_schema.get("name", "")).lower()
-    parameter_names = get_parameter_names(function_schema)
-    # ["a", "b"]
-
-    if not parameter_names:
+    """Build arguments using schema/type-driven extraction."""
+    raw_parameters = function_schema.get("parameters", {})
+    if not isinstance(raw_parameters, dict):
         return {}
-    
-    if "add" in function_name or "sum" in function_name:
-        numbers = extract_numbers(prompt)
-        return {
-            name: numbers[index] if index < len(numbers) else 0.0
-            for index, name in enumerate(parameter_names)
-        }
-        # {"a": 3, "b": 5}
-    if "square" in function_name or "sqrt" in function_name:
-        numbers = extract_numbers(prompt)
-        return {
-            parameter_names[0]: numbers[0] if numbers else 0.0
-        }
-        # {"a": 144}
-    if "greet" in function_name:
-        return {
-            parameter_names[0]: extract_greet_name(prompt)
-        }
-    # {"a": "Ann"}
-    if "reverse" in function_name:
-        return {
-            parameter_names[0]: extract_first_quoted_string(prompt)
-        }
-    if "substitute" in function_name or "replace" in function_name:
-        return build_substitute_args(prompt, parameter_names)
-    return {name: "" for name in parameter_names}
+    # "parameters": {
+    #   "s": {
+    #     "type": "string"
+    #   }
+    # },
+
+    numbers = extract_numbers(prompt)
+    quoted = extract_quoted_strings(prompt)
+    result: dict[str, Any] = {}
+    number_index = 0
+
+    for parameter_name, parameter_schema in raw_parameters.items():
+        parameter_type = ""
+        if isinstance(parameter_schema, dict):
+            parameter_type = str(parameter_schema.get("type", ""))
+
+        if parameter_type == "number":
+            result[parameter_name] = (
+                numbers[number_index]
+                if number_index < len(numbers)
+                else 0.0
+            )
+            number_index += 1
+    # "parameters": {
+    #   "a": {
+    #     "type": "number"
+    #   },
+    #   "b": {
+    #     "type": "number"
+    #   }
+    # },
+
+        elif parameter_type == "string":
+            result[parameter_name] = extract_string_parameter(
+                prompt=prompt,
+                parameter_name=str(parameter_name),
+                quoted=quoted,
+            )
+        else:
+            result[parameter_name] = ""
+    return result
 
 
 def make_function_call(
     model: Small_LLM_Model,
+    decoder: SchemaConstrainedDecoder,
     prompt: str,
     functions: list[dict[str, Any]],
 ) -> FunctionCall:
-    """Create one valid function-call result."""
+    """Create one schema-valid function-call result."""
     function_name = choose_function_name_with_llm(model, prompt, functions)
     function_schema = find_function_schema(function_name, functions)
 
     if function_schema is None:
-        return FunctionCall(prompt=prompt, fn_name="", parameters={})
+        parameters: dict[str, Any] = {}
+    else:
+        parameters = build_args(prompt, function_schema)
     
-    return FunctionCall(
+    json_text = decoder.generate_funcion_call_json(
         prompt=prompt,
-        fn_name=function_name,
-        parameters=build_args(prompt, function_schema),
+        function_name=function_name,
+        function_schema=function_schema,
+        parameters=parameters
     )
+    parsed = json.loads(json_text)
+    return FunctionCall(**parsed)
 
 
 def write_json(path: str, data: list[FunctionCall]) -> None:
@@ -333,12 +347,17 @@ def main() -> None:
     tests = parse_tests(raw_tests)
 
     model = Small_LLM_Model()
+    decoder = SchemaConstrainedDecoder(model)
 
     results: list[FunctionCall] = []
 
     for test in tests:
         prompt = test["prompt"]
-        result = make_function_call(model, prompt, functions)
+        try:
+            result = make_function_call(model, decoder, prompt, functions)
+        except Exception as error:
+            print(f"Error: could not process prompt {prompt!r}: {error}")
+            result = FunctionCall(prompt=prompt, name="", parameters={})
         results.append(result)
 
     write_json(str(args.output), results)
@@ -373,6 +392,6 @@ if __name__ == "__main__":
 
 # {
 #   "prompt": "...",
-#   "fn_name": "...",
+#   "name": "...",
 #   "args": {}
 # }
