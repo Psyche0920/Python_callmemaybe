@@ -1,6 +1,7 @@
 import argparse
 import json
 import re
+import math
 from pathlib import Path
 from typing import Any, cast
 from pydantic import BaseModel
@@ -73,14 +74,18 @@ def extract_numbers(prompt: str) -> list[float]:
 
 def extract_quoted_strings(prompt: str) -> list[str]:
     """Extract all texts inside single or double quotes."""
-    return re.findall(r"['\"]([^'\"]*)['\"]", prompt)
-
+    matches = re.findall(r"(['\"])(.*?)\1", prompt)
+    return [match[1] for match in matches]
+# “匹配任意内容，但尽可能少匹配”也叫：非贪婪匹配（non-greedy / lazy match）
+# ( )capture group
+# .任意字符
+# *重复 0 次或无限次
+# ? -> non-greedy 能少吃就少吃
 
 def extract_first_quoted_string(prompt: str) -> str:
     """Extract the first quoted string."""
     quoted = extract_quoted_strings(prompt)
     return quoted[0] if quoted else ""
-    # ???
 
 
 def extract_greet_name(prompt: str) -> str:
@@ -97,86 +102,65 @@ def extract_greet_name(prompt: str) -> str:
     # match.group(1)    → "Alice Smith"
 
 
-def score_candidate_name(
-        model: Small_LLM_Model,
-        context: str,
-        candidate_name: str,
-) -> float:
-    """Score a function name token by token under a fixed context."""
-    current = context
-    total = 0.0
-    candidate_ids = model.encode(candidate_name)[0].tolist()
-    
-    for token_id in candidate_ids:
-        input_ids = model.encode(current)[0].tolist()
-        logits = model.get_logits_from_input_ids(input_ids)
-        total += logits[token_id]
-        current += model.decode([token_id])
-    return total
-
-# 🎯 关键总结（帮你锁死）
-
-# 👉 vocab size：
-
-# ✔ 固定 → 决定 logits 长度
-
-# 👉 logits：
-
-# ✔ 每次根据 context 重新计算
-# ✔ 给“所有 token”打分
-
-# 👉 你的代码：
-
-# ✔ 一步步验证 candidate_name 是否“符合模型习惯”
-
-
 def choose_function_name_with_llm(
         model: Small_LLM_Model,
         prompt: str, 
         functions: list[dict[str, Any]],
 ) -> str:
-    """Choose the best function name using LLM logits."""
+    """Choose function using LLM logits at the first token after 'fn'."""
     if not functions:
         return ""
+    
     options = "\n".join(
         f"- {function.get('name')}: {function.get('description', '')}"
         for function in functions
     )
+
     context = (
-        "Choose the best function for the user request.\n"
+        "Choose exactly one function from the list.\n"
         f"Available functions:\n{options}\n"
         f"User request: {prompt}\n"
-        "Best function name: "
+        "The correct function is: fn"
     )
+
+    input_ids = model.encode(context)[0].tolist()
+    logits = model.get_logits_from_input_ids(input_ids)
+
     best_name = ""
-    best_score = float("-inf")
+    best_score = -math.inf
 
     for function in functions:
-        candidate_name = str(function.get("name", ""))
-        score = score_candidate_name(model, context, candidate_name)
+        name = str(function.get("name", ""))
+        suffix = name[2:] if name.startswith("fn") else name
+        suffix_ids = model.encode(suffix)[0].tolist()
+        
+        if not suffix_ids:
+            continue
+        
+        score = logits[suffix_ids[0]]
 
         if score > best_score:
             best_score = score
-            best_name = candidate_name
+            best_name = name
     return best_name
 
-# Choose the best function...
-# Available functions:
-# - fn_add_numbers: add two numbers
-# - fn_greet: greet a person
+# encode(context)
+# ↓
+# 得到 context token ids
 
-# User request: Add 3 and 5
+# get_logits_from_input_ids(input_ids)
+# ↓
+# 得到“下一个 token”的 logits 分布
 
-# Best function name:
-# 👉 模型会：
+# encode(suffix)
+# ↓
+# 得到 function suffix 对应 token ids
 
-# ✔ 看选项
-# ✔ 看描述
-# ✔ 对比 prompt
-
-# 👉 得出：
-
-# fn_add_numbers ✅
+# logits[suffix_ids[0]]
+# ↓
+# 查看模型对：
+# “下一个 token 是这个 suffix 第一个 token”
+# 的偏好分数
 
 
 def find_function_schema(
@@ -223,7 +207,7 @@ def build_substitute_args(
     if "asterisks" in lower:
         replacement = "*"
     else:
-        match = re.search(r"with\s+([A-Za-z0-9_*]+)", prompt)
+        match = re.search(r"with\s+['\"]?([A-Za-z0-9_*]+)['\"]?", prompt)
         replacement = match.group(1) if match else ""
     values = {
         "source_string": source_string,

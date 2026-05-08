@@ -9,11 +9,10 @@
   },
   {
     "prompt": "What is the sum of 265 and 345?",
-    "fn_name": "fn_substitute_string_with_regex",
+    "fn_name": "fn_add_numbers",
     "parameters": {
-      "source_string": "",
-      "regex": "",
-      "replacement": ""
+      "a": 265.0,
+      "b": 345.0
     }
   },
   {
@@ -82,7 +81,7 @@
     "parameters": {
       "source_string": "The cat sat on the mat with another cat",
       "regex": "cat",
-      "replacement": "another"
+      "replacement": "dog"
     }
   }
 ]
