@@ -194,13 +194,11 @@ def extract_string_parameter(
     if name == "replacement":
         if "asterisks" in lower:
             return "*"
-        elif "with" in lower and quoted: 
+        if "with" in lower and quoted: 
             if len(quoted) >= 3:
                 return quoted[1]
-            return quoted[0]
-        else:
-            match = re.search(r"with\s+['\"]?([A-Za-z0-9_*]+)['\"]?", prompt)
-            replacement = match.group(1) if match else ""
+        match = re.search(r"with\s+['\"]?([A-Za-z0-9_*]+)['\"]?", prompt)
+        return match.group(1) if match else ""
 
     if name == "source_string":
         return quoted[-1] if quoted else ""
@@ -279,7 +277,7 @@ def make_function_call(
     else:
         parameters = build_args(prompt, function_schema)
     
-    json_text = decoder.generate_funcion_call_json(
+    json_text = decoder.generate_function_call_json(
         prompt=prompt,
         function_name=function_name,
         function_schema=function_schema,
