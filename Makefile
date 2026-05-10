@@ -1,22 +1,34 @@
-PYTHON = python3
-
-.PHONY: install run debug clean lint lint-strict
+.PHONY: install run debug clean fclean lint lint-strict
 
 install:
-	uv sync
+	mkdir -p .cache/uv_cache .cache/hf_cache
+	UV_CACHE_DIR=.cache/uv_cache \
+	HF_HOME=.cache/hf_cache \
+	UV_LINK_MODE=copy \
+	uv sync --python 3.11
+
 
 run:
-	uv run python -m src
+	uv run python -m src \
+		--functions_definition data/input/functions_definition.json \
+		--input data/input/function_calling_tests.json \
+		--output data/output/function_calls.json
+
 
 debug:
 	uv run python -m pdb -m src
 
+
 clean:
-	rm -rf __pycache__
-	rm -rf src/__pycache__
-	rm -rf .mypy_cache
-	rm -rf .pytest_cache
-	rm -rf data/output
+	find . -type d -name __pycache__ -exec rm -rf {} +
+	find . -type d -name .mypy_cache -exec rm -rf {} +
+	find . -type d -name .pytest_cache -exec rm -rf {} +
+	find . -name "*.pyc" -delete
+	find . -name "*.pyo" -delete
+
+fclean:
+	rm -rf .cache
+	rm -rf .venv
 
 
 lint:

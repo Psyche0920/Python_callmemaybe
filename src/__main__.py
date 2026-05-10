@@ -4,8 +4,10 @@ import re
 import math
 from pathlib import Path
 from typing import Any, cast
+
 from pydantic import BaseModel
 from llm_sdk import Small_LLM_Model
+
 from src.json_state_machine import SchemaConstrainedDecoder
 
 

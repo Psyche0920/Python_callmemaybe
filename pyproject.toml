@@ -1,11 +1,15 @@
 [project]
-name = "python-callmemaybe"
+name = "call_me_maybe"
 version = "0.1.0"
-description = "Add your description here"
+description = "Function calling tool using constrained decoding with small LLMs"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
-    "huggingface-hub>=1.13.0",
     "pydantic>=2.13.3",
-    "transformers>=5.7.0",
+]
+
+[dependency-groups]
+dev = [
+    "flake8>=7.0.0",
+    "mypy>=1.0.0"
 ]
