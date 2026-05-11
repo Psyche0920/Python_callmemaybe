@@ -1,11 +1,20 @@
-*This project has been created as part of the 42 curriculum by wehan.*
+# Call Me Maybe
 
-# Call Me maybe
+*This project was created as part of the 42 curriculum by wehan.*
 
-## Description
-Call Me Maybe is a function_calling tool that translates natural language prompts into structured JSON function calls.
+## Overview
 
-Instead of directly answering a user request, the program selects the most suitable function from a provided function definition file and extracts the required arguments according to the funcion schema.
+Call Me Maybe is a lightweight function-calling system that converts natural-language prompts into structured JSON function calls using a small language model.
+
+The project combines:
+
+- LLM-based function selection
+- schema-driven parameter extraction
+- constrained decoding
+- state-machine JSON generation
+- JSON validation
+
+to guarantee valid structured output.
 
 Example:
 
@@ -18,10 +27,31 @@ Example:
     "b": 3.0
   }
 }
+```
 
-The project focuses on reliable structured output genreation with a small language model. Since small models may not always produce valid JSON by prompting alone, this implementation uses constrained decoding to guide JSON generation.
+---
+
+## Features
+
+- LLM logits-based function selection
+- schema-aware argument extraction
+- constrained JSON decoding
+- deterministic state-machine generation
+- valid JSON output
+- graceful error handling
+- support for:
+  - numbers
+  - integers
+  - booleans
+  - strings
+  - enums
+  - regex-based substitutions
+
+---
 
 ## Project Structure
+
+```text
 .
 ├── src/
 │   ├── __main__.py
@@ -34,219 +64,183 @@ The project focuses on reliable structured output genreation with a small langua
 │   └── models.py
 ├── data/
 │   └── input/
-│       ├── functions_definition.json
-│       └── function_calling_tests.json
 ├── llm_sdk/
 ├── pyproject.toml
-├── uv.lock
 ├── Makefile
 └── README.md
+```
 
-# Installation
-The project uses uv.
+---
+
+## Installation
+
+Install dependencies with:
+
+```bash
 uv sync
-The llm_sdk/ directory must be present at the root of the repository.
+```
 
-# Usage
-Run the program with the default input and output paths:
+The `llm_sdk/` directory must exist at the repository root.
+
+---
+
+## Usage
+
+Run with default paths:
+
+```bash
 uv run python -m src
+```
 
 Run with custom files:
+
+```bash
 uv run python -m src \
   --functions_definition data/input/functions_definition.json \
   --input data/input/function_calling_tests.json \
   --output data/output/function_calling_results.json
-  The output directory is created automatically during execution.
+```
 
-# Input Files
-functions_definition.json
-This file contains the available funcions, their descriptions, parameters and return types.
-Example:
-[
-  {
-    "name": "fn_add_numbers",
-    "description": "Add two numbers together and return their sum.",
-    "parameters": {
-      "a": {
-        "type": "number"
-      },
-      "b": {
-        "type": "number"
-      }
-    },
-    "returns": {
-      "type": "number"
-    }
-  }
-]
+---
 
-function_calling_tests.json
-This file contains the prompts to process.
-Example:
+## How It Works
 
-[
-  {
-    "prompt": "What is the sum of 2 and 3?"
-  }
-]
+### Function Selection
 
-# Output Format
-The progra writes a JSON array to:
-data/output/function_calling_results.json
+The selector builds a prompt containing:
 
-Each entry follows this schema:
+- available functions
+- descriptions
+- user request
+
+The model performs one forward pass and scores candidate functions using logits from the first distinguishing token after the shared `fn` prefix.
+
+Softmax converts scores into probabilities.
+
+Low-confidence prompts return:
+
+```json
 {
-  "prompt": "Original prompt",
-  "name": "function_name",
+  "name": "",
   "parameters": {}
 }
+```
 
-The output contains no extra prose, comments, or text outside the JSON structure.
+---
 
-## Algorithm Explanation
-The pipleline has four main steps.
+### Parameter Extraction
 
-1. Function Selection
-Function selection is performed with small LLM through logits scoring.
+Arguments are extracted according to the selected schema.
 
-The program builds a context containing:
--the available function names
--their descriptions
--the user prompt
--a prefix: The correct function is: fn
-The model then provides logits for the next token. Each function name is scored by checking the model's preference for the first token after the shared fn prefix.
+Supported parameter types:
 
-The scores are converted into probabilities with softmax. If the best probability is too low, the algorithm treats the prompt as ambiguous and returns an empty function call.
+- `number`
+- `integer`
+- `string`
+- `boolean`
+- `enum`
 
-This keeps function selection LLM-based while avoiding pure keyword matching.
+Regex-based parsing is used for:
 
-2. Parameter Extraction
-Argument extraction is schema-driven and uses regex-based text parsing.
-The program reads the selected function schema and extracts arguments according to parameter type:
--number: extracts numeric values
--integer: extracts numbers and converts them to integers
--string: extracts quoted strings or named values
--boolean: detects words such as enable, disable, on, and off
--enum: only allows values listed in the schema
+- numbers
+- quoted strings
+- substitutions
+- booleans
+- regex patterns
 
-For example, if a schema contains:
-"firmware": {
-  "type": "string",
-  "enum": ["stable", "beta", "nightly"]
-}
-the output will only contain of these allowed values.
+---
 
-3. Constrained JSON Generation
-The JSON output is generated with a state machine.
+### Constrained Decoding
 
-The decoder moves through states such as:
--object start
--prompt key
--prompt value
--name key
--name value
--parameters key
--parameters keys and values
--object close
+JSON generation is guided by a deterministic state machine.
 
-At each step, the decoder knows the exact JSON fragment that should be generated next.
+Only tokens matching the expected JSON fragment are allowed during decoding.
 
-The model logits are used to choose the best valid token. Tokens that do not match the expected JSON fragment are not allowed to participate in selection. This is equivalent to setting invalid token logits to negative infinity. ???
+This guarantees structurally valid JSON output.
 
-This guarantees that the generated text remains valid JSON.
+---
 
-4. Validation and Writing
-After generation:
--json.loads() checks that the generated JSON is parseable
--Pydantic validates the final FunctionCall obejct.
--json.dump() writes the clean JSON array to the output file.
+### Validation
 
-## Design Decisions
-# LLM for Function Selection
-The function name is selected using LLM logits, not hardcoded keyword rules. This follows the project requirement that the function should be chosen by the model.
+Generated outputs are validated with:
 
+- `json.loads()`
+- `Pydantic`
 
-# Schema-Driven Arguments
-The parameters are extracted according to the function schema instead of fixed examples.
-This makes the program more flexible when the input function definition change.
+and written using:
 
-# State machine for JSON
-A state machineis used to make JSON generation explicit and reliable. This avoids relying on the model to spontaneously produce valid JSON.
+- `json.dump()`
 
-## Graceful Error Handling
-Missing files, invalid JSON files, malformed inputs, and processing errors are handled with clear messages. The program avoids unexpected crashes and keeps the output format valid whenever possible.
+---
 
-## Performance and Reliability
-The selector uses one model forward pass per prompt for function scoring. This keeps runtime practical and helps the program stay within the expected evaluation time.
+## Performance
 
-The constrained decoder ensures that output JSON is always parseable.
+The implementation is optimized for runtime stability using:
 
-The implementation was tested with:
--simple arthmetic prompts
--negative numbers
--decimal numbers
--large numbers
--string reversal
--empty strings
--regex substitution
--enum values
--boolean values
--integer parameters
--ambiguous prompts
--missing or malformed input files
+- one forward pass per prompt
+- first-token function scoring
+- valid-token caching
+- lightweight regex extraction
 
-## Testing Strategy
-Run the project normally
-uv run python -m src
+---
 
-Test missing input file:
-uv run python -m src --input data/input/not_found.json
+## Testing
 
-Expected behavior:
-Error: file not found: data/input/not_found.json
+Tested with:
 
-Test invalid JSON:
-echo "{ bad json" > data/input/bad.json
-uv run python -m src --input data/input/bad.json
-
-Expected behavior:
-Error: invalid JSON file: data/input/bad.json
+- arithmetic prompts
+- negative and decimal numbers
+- regex substitutions
+- enum values
+- booleans
+- empty strings
+- malformed files
+- ambiguous prompts
 
 Run linting:
+
+```bash
 make lint
+```
 
 Run strict linting:
-make lint-strict
 
-## Makefile
-The Makefile provides common commands:
+```bash
+make lint-strict
+```
+
+---
+
+## Makefile Commands
+
+```bash
 make install
 make run
 make debug
 make clean
 make lint
 make lint-strict
+```
 
-## Challenges Faced
-# Keeping JSON Valid
-Small language models are unreliable when asked to directly output JSON. The solution was to guide generation with a state machine and only allow valid tokens at each step.
-
-# Balancing Accuracy and Runtime
-Scoring full function names token by token can be more accurate but slower. The implementation uses a faster logits-based selection strategy to keep runtime reasonale.
-
-# Handling Different Parameter Types
-The input function definitions may change during evaluation, so the extractor supports multiple schema types, including numbers, strings, booleans, integers, and enums.
-
-# Avoiding Crashes
-Input files may be missing or malformed. File loading and prompt processing are wrapped with error handing so the program exits cleanly or produces safe fallback output.
+---
 
 ## AI Usage
-AI tools were used to help reason about architecture, edge cases, README wording, and testing strategies.
 
-All code was reviewed and adapted manually. The final implementation was tested and understood by the author.
+AI tools were used for:
 
-Resources:
-LLM Model Introduction: https://www.bilibili.com/video/BV11nSjB2ErQ/?spm_id_from=333.1391.0.0&p=6&vd_source=13ca61368de7608ca77ae75e59d223d4
+- architecture discussion
+- edge-case analysis
+- README refinement
+- testing ideas
 
+All code was manually reviewed, adapted, and understood by the author.
 
+---
 
+## Sources
+
+- LLM Introduction (CN): https://www.bilibili.com/video/BV11nSjB2ErQ/
+- ML Introduction (CN): https://www.bilibili.com/video/BV1SjDsBLEzN/
+- Logits: https://en.wikipedia.org/wiki/Logit
+- UTF-8: https://en.wikipedia.org/wiki/UTF-8
+- Softmax: https://en.wikipedia.org/wiki/Softmax_function
