@@ -1,0 +1,29 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual environment
+.venv/
+
+# Mypy
+.mypy_cache/
+
+# Pytest
+.pytest_cache/
+
+# Ruff / cache
+.cache/
+
+# Build metadata
+*.egg-info/
+src/*.egg-info/
+
+# Output directory
+data/output/
+
+# OS files
+.DS_Store
+
+# IDE
+.vscode/
+.idea/

@@ -166,7 +166,7 @@
     "name": "fn_substitute_string_with_regex",
     "parameters": {
       "source_string": "abc123xyz",
-      "regex": "abc123xyz",
+      "regex": "\\d+",
       "replacement": "NUM"
     }
   },
@@ -229,23 +229,18 @@
     "name": "fn_substitute_string_with_regex",
     "parameters": {
       "source_string": "a,b,c,d",
-      "regex": "a,b,c,d",
-      "replacement": "spaces"
+      "regex": ",",
+      "replacement": " "
     }
   },
   {
     "prompt": "?????",
-    "name": "fn_reverse_string",
-    "parameters": {
-      "s": ""
-    }
+    "name": "",
+    "parameters": {}
   },
   {
     "prompt": "",
-    "name": "fn_add_numbers",
-    "parameters": {
-      "a": 0.0,
-      "b": 0.0
-    }
+    "name": "",
+    "parameters": {}
   }
 ]

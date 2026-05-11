@@ -18,7 +18,7 @@ class JsonState(Enum):
     PARAMETER_KEY = "parameter_key"
     PARAMETER_VALUE = "parameter_value"
     PARAMETERS_CLOSE = "parameters_close"
-    OBJECT_CLOSE = "object_close"    
+    OBJECT_CLOSE = "object_close"
     DONE = "done"
 
 
@@ -32,22 +32,22 @@ class VocabularyMap:
         self.model = model
         self.token_ids = self._load_token_ids()
         self.decoded_tokens = self._decode_tokens()
-    
+
     def _load_token_ids(self) -> list[int]:
         """Load public token ids from the SDK vocabulary JSON file."""
         vocab_path = self.model.get_path_to_vocab_file()
         with open(vocab_path, "r", encoding="utf-8") as file:
             data = json.load(file)
-        
+
         if isinstance(data, dict):
             ids = [int(value) for value in data.values()]
         elif isinstance(data, list):
             ids = list(range(len(data)))
         else:
             ids = []
-        
+
         return sorted(set(ids))
-    
+
     def _decode_tokens(self) -> list[tuple[int, str]]:
         """Decode each public vocabulary token id once."""
         decoded: list[tuple[int, str]] = []
@@ -85,7 +85,8 @@ class SchemaConstrainedDecoder:
     def __init__(self, model: Small_LLM_Model) -> None:
         self.model = model
         self.vocabulary = VocabularyMap(model)
-    
+        self.valid_token_cache: dict[str, list[tuple[int, str]]] = {}
+
     def choose_token_for_expected_text(
         self,
         current: str,
@@ -94,15 +95,26 @@ class SchemaConstrainedDecoder:
         """Choose the best valid token for the current state fragment."""
         input_ids = self.model.encode(current)[0].tolist()
         if not input_ids:
-            input_ids=self.model.encode(" ")[0].tolist()
+            input_ids = self.model.encode(" ")[0].tolist()
 
         logits = self.model.get_logits_from_input_ids(input_ids)
         # token_id -> next-token score
+        valid_tokens = self.valid_token_cache.get(expected_remaining)
+
+        if valid_tokens is None:
+            valid_tokens = [
+                (token_id, token_text)
+                for token_id, token_text in self.vocabulary.decoded_tokens
+                if expected_remaining.startswith(token_text)
+            ]
+            self.valid_token_cache[expected_remaining] = valid_tokens
+
         best_token = ""
         best_score = -math.inf
 
-        for token_id, token_text in self.vocabulary.decoded_tokens:
-            if expected_remaining.startswith(token_text):  # to find the best within legal tokens
+        for token_id, token_text in valid_tokens:
+            if expected_remaining.startswith(token_text):
+                # to find the best within legal tokens
                 score = float(logits[token_id])
                 if score > best_score:
                     best_score = score
@@ -110,10 +122,11 @@ class SchemaConstrainedDecoder:
         if best_token == "":
             raise RuntimeError(
                 "No valid token found for expected text: "
-                f"{expected_remaining[:40]!r}"  # print the first 40 chars  !r 用 repr/debug 形式打印
+                f"{expected_remaining[:40]!r}"
+                # print the first 40 chars  !r 用 repr/debug 形式打印
             )
         return best_token
-    
+
     def generate_expected_text(self, current: str, expected_text: str) -> str:
         """Generate one state-specific fragment via token filtering."""
         generated = ""
@@ -143,16 +156,23 @@ class SchemaConstrainedDecoder:
     def json_value_for_schema(self, value: Any, parameter_schema: Any) -> str:
         """Serialize one parameter value acoording to its schema type."""
         parameter_type = ""
+
         if isinstance(parameter_schema, dict):
             parameter_type = str(parameter_schema.get("type", ""))
-        
+
+        enum_values = parameter_schema.get("enum")
+        if (isinstance(enum_values, list) and enum_values):
+            if value in enum_values:
+                return json.dumps(value)
+            return json.dumps(enum_values[0])
+
         if parameter_type == "number":
             if isinstance(value, int | float):
                 return json.dumps(float(value))
-        
+
         if parameter_type == "string":
             return json.dumps(str(value))
-        
+
         return json.dumps(value)
 
     def generate_function_call_json(
@@ -165,7 +185,7 @@ class SchemaConstrainedDecoder:
         """Generate a valid function-call JSON object state by state."""
         current = ""
         state = JsonState.START
-        parameter_index =  0
+        parameter_index = 0
 
         raw_parameter_schemas: Any = {}
         if function_schema is not None:
@@ -176,7 +196,7 @@ class SchemaConstrainedDecoder:
             parameter_schemas = raw_parameter_schemas
         else:
             parameter_schemas = {}
-        
+
         parameter_names = list(parameter_schemas.keys())
 
         while state != JsonState.DONE:
@@ -189,31 +209,34 @@ class SchemaConstrainedDecoder:
                 state = JsonState.PROMPT_VALUE
 
             elif state == JsonState.PROMPT_VALUE:
-                current = self.generate_expected_text(current, json.dumps(prompt))
+                current = self.generate_expected_text(current,
+                                                      json.dumps(prompt))
                 current = self.generate_expected_text(current, ", ")
                 state = JsonState.NAME_KEY
-            
+
             elif state == JsonState.NAME_KEY:
                 current = self.generate_expected_text(current, '"name": ')
                 state = JsonState.NAME_VALUE
 
             elif state == JsonState.NAME_VALUE:
-                current = self.generate_expected_text(current, json.dumps(function_name))  # python object -> json str
+                current = self.generate_expected_text(
+                    current,
+                    json.dumps(function_name))  # python object -> json str
                 current = self.generate_expected_text(current, ", ")
                 state = JsonState.PARAMETERS_KEY
 
             elif state == JsonState.PARAMETERS_KEY:
-                current = self.generate_expected_text(current, '"parameters": ')
+                current = self.generate_expected_text(
+                    current, '"parameters": ')
                 state = JsonState.PARAMETERS_OPEN
 
             elif state == JsonState.PARAMETERS_OPEN:
-                current = self.generate_expected_text(current, "{") 
+                current = self.generate_expected_text(current, "{")
                 if parameter_names:
                     state = JsonState.PARAMETER_KEY
                 else:
                     state = JsonState.PARAMETERS_CLOSE
 
-            
             elif state == JsonState.PARAMETER_KEY:
                 parameter_name = parameter_names[parameter_index]
                 current = self.generate_expected_text(
@@ -222,7 +245,7 @@ class SchemaConstrainedDecoder:
                 )
                 current = self.generate_expected_text(current, ": ")
                 state = JsonState.PARAMETER_VALUE
-            
+
             elif state == JsonState.PARAMETER_VALUE:
                 parameter_name = parameter_names[parameter_index]
                 parameter_schema = parameter_schemas[parameter_name]
@@ -231,14 +254,14 @@ class SchemaConstrainedDecoder:
                     parameter_schema,
                 )
                 current = self.generate_expected_text(current, value_text)
-                
+
                 parameter_index += 1
                 if parameter_index < len(parameter_names):
                     current = self.generate_expected_text(current, ", ")
                     state = JsonState.PARAMETER_KEY
                 else:
                     state = JsonState.PARAMETERS_CLOSE
-                
+
             elif state == JsonState.PARAMETERS_CLOSE:
                 current = self.generate_expected_text(current, "}")
                 state = JsonState.OBJECT_CLOSE
@@ -250,7 +273,7 @@ class SchemaConstrainedDecoder:
         json.loads(current)  # json str -> python object: FunctionCall
         return current
 
-# e.g. 
+# e.g.
 # {
 #     "prompt": "What is the sum of 2 and 3?",
 #     "fn_name": "fn_add_numbers",
@@ -259,8 +282,6 @@ class SchemaConstrainedDecoder:
 #       "b": 3.0
 #     }
 #   }
-
-
 
 # 1. 什么是 function-call object？
 
@@ -299,7 +320,7 @@ class SchemaConstrainedDecoder:
 # FunctionCall(BaseModel)
 
 # 就是这个 JSON object 的 Python/Pydantic 版
-# 2. 
+# 2.
 # Python object/data
 
 # ↓
