@@ -84,7 +84,7 @@ def extract_boolean(prompt: str) -> bool:
     lower = prompt.lower()
 
     true_words = ["true", "yes", "enable", "enabled", "on"]
-    false_words = ["false", "np", "disable", "disabled", "off"]
+    false_words = ["false", "no", "disable", "disabled", "off"]
 
     for word in false_words:
         if re.search(rf"\b{re.escape(word)}\b", lower):
@@ -150,6 +150,7 @@ def build_args(
                 if number_index < len(numbers)
                 else 0
             )
+            number_index += 1
 
         elif parameter_type == "boolean":
             result[parameter_name] = extract_boolean(prompt)
