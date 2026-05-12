@@ -1,7 +1,7 @@
 # Call Me Maybe
 *This project was created as part of the 42 curriculum by wehan.*
 
-## Overview
+## Description
 Call Me Maybe is a function-calling system that converts natural language prompts into structured JSON function calls using a small language model.
 
 The project combines:
@@ -28,7 +28,7 @@ Example:
 
 ---
 
-## Features
+### Features
 
 - LLM logits-based function selection
 - schema-aware argument extraction
@@ -46,7 +46,7 @@ Example:
 
 ---
 
-## Project Structure
+### Project Structure
 
 ```text
 .
@@ -79,7 +79,9 @@ Example:
 
 ---
 
-## Installation
+## Instructions
+
+### Installation
 
 Install dependencies with:
 
@@ -91,7 +93,7 @@ The `llm_sdk/` directory must exist at the repository root.
 
 ---
 
-## Usage
+## Example Usage
 
 Run with default paths:
 
@@ -110,7 +112,7 @@ uv run python -m src \
 
 ---
 
-## How It Works
+## Algorithm
 
 ### Function Selection
 
@@ -201,6 +203,29 @@ Complexity:
 
 Reliability:
 - Structurally valid JSON output via deterministic state-machine generation and constrained token selection.
+
+---
+
+
+---
+
+## Design Decisions
+
+Key implementation choices include:
+- using logits-based function selection instead of prompt-only matching
+- combining deterministic state-machine generation with constrained token filtering
+- using schema-aware parameter extraction for different parameter types
+- validating structured outputs with Pydantic and json.loads()
+
+---
+
+## Challenges Faced
+
+Main implementation challenges included:
+- maintaining valid JSON structure during constrained decoding
+- handling tokenizer vocabulary boundaries during token filtering
+- balancing deterministic generation with model-based scoring
+- managing limited storage environments on 42 Linux machines
 
 ---
 
