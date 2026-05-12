@@ -62,7 +62,7 @@ Example:
 │   ├── __init__.py
 │   ├── __main__.py
 │   ├── decoder.py
-│   ├── extractor.py
+│   ├── extracter.py
 │   ├── main.py
 │   ├── models.py
 │   ├── parser.py
