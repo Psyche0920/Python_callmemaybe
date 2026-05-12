@@ -7,11 +7,11 @@ Call Me Maybe is a function-calling system that converts natural language prompt
 The project combines:
 - LLM-based function selection
 - schema-driven parameter extraction
--constrained decoding
+- constrained decoding
 - state-machine JSON generation
 - JSON validation
 
-to guarantee valid structured output.
+to produce valid structured output.
 
 Example:
 
@@ -32,7 +32,7 @@ Example:
 
 - LLM logits-based function selection
 - schema-aware argument extraction
--constrained JSON decoding
+- constrained JSON decoding
 - deterministic state-machine generation
 - valid JSON output
 - graceful error handling
@@ -50,21 +50,31 @@ Example:
 
 ```text
 .
-├── src/
-│   ├── __main__.py
-│   ├── main.py
-│   ├── selector.py
-│   ├── extractor.py
-│   ├── decoder.py
-│   ├── parser.py
-│   ├── utils.py
-│   └── models.py
 ├── data/
 │   └── input/
+│       ├── function_calling_tests.json
+│       └── functions_definition.json
+│
 ├── llm_sdk/
-├── pyproject.toml
+│   └── ...
+│
+├── src/
+│   ├── __init__.py
+│   ├── __main__.py
+│   ├── decoder.py
+│   ├── extractor.py
+│   ├── main.py
+│   ├── models.py
+│   ├── parser.py
+│   ├── selector.py
+│   └── utils.py
+│
+├── .gitignore
 ├── Makefile
-└── README.md
+├── pyproject.toml
+├── README.md
+└── uv.lock
+
 ```
 
 ---
@@ -149,11 +159,11 @@ Regex-based parsing is used for:
 
 JSON generation is guided by a deterministic state machine.
 
-Only tokens matching the expected JSON fragement are allowed during decoding.
+Only tokens matching the expected JSON fragment are allowed during decoding.
 
 Token filtering is constrained by deterministic expected-text generation rather than free-form sampling.
 
-This guarantees structurally valid JSON output.
+This produces structurally valid JSON output.
 
 ---
 
@@ -253,6 +263,8 @@ All code was manually reviewed, adapted, and understood by the author.
 - UTF-8: https://en.wikipedia.org/wiki/UTF-8
 - Softmax: https://en.wikipedia.org/wiki/Softmax_function
 
+---
+
 ### Note for 42 machines
 
 If `uv sync` fails because of limited `/home` storage, redirect the uv cache and virtual environment to `/goinfre`:
@@ -265,3 +277,4 @@ export TMPDIR=/goinfre/$USER/tmp
 export UV_PROJECT_ENVIRONMENT=/goinfre/$USER/venvs/python-callmemaybe
 export UV_LINK_MODE=copy
 uv sync --python 3.11
+```
