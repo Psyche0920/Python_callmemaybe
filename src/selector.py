@@ -1,6 +1,6 @@
 import math
 from typing import Any
-from llm_sdk import Small_LLM_Model
+from llm_sdk import Small_LLM_Model  # type: ignore[attr-defined]
 
 
 def softmax(scores: list[float]) -> list[float]:
@@ -66,26 +66,3 @@ def choose_function_name_with_llm(
         return ""
 
     return names[best_index]
-
-# encode(context)
-# ↓
-# 得到 context token ids
-
-# get_logits_from_input_ids(input_ids)
-# ↓
-# 得到“下一个 token”的 logits 分布
-
-# encode(suffix)
-# ↓
-# 得到 function suffix 对应 token ids
-
-# logits[suffix_ids[0]]
-# ↓
-# 查看模型对：
-# “下一个 token 是这个 suffix 第一个 token”
-# 的偏好分数
-
-# selector = 在合法函数里选最像的--softmax
-# decoder = 在所有 token 里禁止非法 token，强制生成合法 JSON---mathinf
-
-# 所以方式不同是正常的。selector 是 selection/scoring，decoder 是 generation constraint。

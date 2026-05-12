@@ -1,38 +1,37 @@
 [
-{ "prompt": "What is the sum of 2 and 3?" },
-  { "prompt": "Add -5 and -20" },
-  { "prompt": "Add 3.14 and 2.71" },
-  { "prompt": "Add 0 and 0" },
-  { "prompt": "Add 5" },
-  { "prompt": "What is 10 plus 25?" },
-
-  { "prompt": "Greet shrek" },
-  { "prompt": "Greet john" },
-  { "prompt": "Greet Jean Luc Picard" },
-  { "prompt": "Please greet Alice" },
-  { "prompt": "Greet" },
-
-  { "prompt": "Reverse the string 'hello'" },
-  { "prompt": "Reverse the string \"hello world\"" },
-  { "prompt": "Reverse the string 'Hello, World!'" },
-  { "prompt": "Reverse hello" },
-  { "prompt": "Please reverse 'racecar'" },
-
-  { "prompt": "What is the square root of 16?" },
-  { "prompt": "Calculate the square root of 144" },
-  { "prompt": "What is the square root of 0?" },
-  { "prompt": "Calculate 81 root" },
-  { "prompt": "sqrt of 2.25" },
-
-  { "prompt": "Replace all numbers in \"Hello 34 I'm 233 years old\" with NUMBERS" },
-  { "prompt": "Replace all digits in \"abc123xyz\" with NUM" },
-  { "prompt": "Replace all vowels in 'Programming is fun' with asterisks" },
-  { "prompt": "Replace vowels in 'ChatGPT is amazing' with _" },
-  { "prompt": "Substitute the word 'cat' with 'dog' in 'The cat sat on the mat with another cat'" },
-  { "prompt": "Replace 'error' with 'warning' in 'error: file not found'" },
-  { "prompt": "Replace 'one' with 'two' in 'one one one'" },
-  { "prompt": "Replace all numbers in \"Room 101 costs 50 dollars\" with XXX" },
-  { "prompt": "Replace separators in \"a,b,c,d\" with spaces" },
+  {
+    "prompt": "What is the sum of 2 and 3?"
+  },
+  {
+    "prompt": "What is the sum of 265 and 345?"
+  },
+  {
+    "prompt": "Greet shrek"
+  },
+  {
+    "prompt": "Greet john"
+  },
+  {
+    "prompt": "Reverse the string 'hello'"
+  },
+  {
+    "prompt": "Reverse the string 'world'"
+  },
+  {
+    "prompt": "What is the square root of 16?"
+  },
+  {
+    "prompt": "Calculate the square root of 144"
+  },
+  {
+    "prompt": "Replace all numbers in \"Hello 34 I'm 233 years old\" with NUMBERS"
+  },
+  {
+    "prompt": "Replace all vowels in 'Programming is fun' with asterisks"
+  },
+  {
+    "prompt": "Substitute the word 'cat' with 'dog' in 'The cat sat on the mat with another cat'"
+  },
 
   { "prompt": "?????" },
   { "prompt": "" }

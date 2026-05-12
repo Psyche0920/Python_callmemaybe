@@ -29,19 +29,3 @@ def write_json(path: str, data: list[FunctionCall]) -> None:
     with open(output_path, "w", encoding="utf-8") as file:
         json.dump([item.model_dump() for item in data], file, indent=2)
     print(f"Output written to {output_path}")
-
-    # encoding = UTF-8 是规则
-    # read  → 用这个规则 decode
-    # write → 用这个规则 encode
-
-    # json.dump(data, file, indent=2)
-    # Python对象 → JSON字符串 → 写入文件
-    # data (Python list/dict)
-    # ↓
-    # json.dump
-    # ↓
-    # JSON字符串
-    # ↓
-    # file.write
-    # ↓
-    # 磁盘文件（.json）

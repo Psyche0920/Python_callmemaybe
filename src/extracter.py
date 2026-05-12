@@ -12,11 +12,6 @@ def extract_quoted_strings(prompt: str) -> list[str]:
     """Extract all texts inside single or double quotes."""
     matches = re.findall(r"(['\"])(.*?)\1", prompt)
     return [match[1] for match in matches]
-# “匹配任意内容，但尽可能少匹配”也叫：非贪婪匹配（non-greedy / lazy match）
-# ( )capture group
-# .任意字符
-# *重复 0 次或无限次
-# ? -> non-greedy 能少吃就少吃
 
 
 def extract_greet_name(prompt: str) -> str:
@@ -27,17 +22,13 @@ def extract_greet_name(prompt: str) -> str:
         re.IGNORECASE,
     )
     return cast(str, match.group(1)) if match else ""
-    # greet\s+([a-zA-Z]+(?:\s+[a-zA-Z]+)*)
-    #         ↑ 这个括号是 group(1)
-    # match.group()     → "Greet Alice Smith"
-    # match.group(1)    → "Alice Smith
 
 
 def extract_string_parameter(
     prompt: str,
     parameter_name: str,
     quoted: list[str]
-) -> dict[str, Any]:
+) -> str:
     """Extract a string value using the schema parameter role."""
     lower = prompt.lower()
     name = parameter_name.lower()
@@ -61,9 +52,8 @@ def extract_string_parameter(
             return ","
         elif quoted:
             return re.escape(quoted[0])
-            # “把字符串安全地变成 regex”
-            # re.escape() 是为了防止特殊字符出问题，比如 .、*、?。
-            # 如果没有 numbers / vowels，但有引号，就把第一个引号里的内容当作要匹配的东西。
+            # re.escape() for special characters，e.g. .、*、?。
+            # if no numbers / vowels，but ""，transfer the first "" as regex。
         return ""
 
     if name == "replacement":

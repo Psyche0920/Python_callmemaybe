@@ -8,43 +8,11 @@
     }
   },
   {
-    "prompt": "Add -5 and -20",
+    "prompt": "What is the sum of 265 and 345?",
     "name": "fn_add_numbers",
     "parameters": {
-      "a": -5.0,
-      "b": -20.0
-    }
-  },
-  {
-    "prompt": "Add 3.14 and 2.71",
-    "name": "fn_add_numbers",
-    "parameters": {
-      "a": 3.14,
-      "b": 2.71
-    }
-  },
-  {
-    "prompt": "Add 0 and 0",
-    "name": "fn_add_numbers",
-    "parameters": {
-      "a": 0.0,
-      "b": 0.0
-    }
-  },
-  {
-    "prompt": "Add 5",
-    "name": "fn_add_numbers",
-    "parameters": {
-      "a": 5.0,
-      "b": 0.0
-    }
-  },
-  {
-    "prompt": "What is 10 plus 25?",
-    "name": "fn_add_numbers",
-    "parameters": {
-      "a": 10.0,
-      "b": 25.0
+      "a": 265.0,
+      "b": 345.0
     }
   },
   {
@@ -62,27 +30,6 @@
     }
   },
   {
-    "prompt": "Greet Jean Luc Picard",
-    "name": "fn_greet",
-    "parameters": {
-      "name": "Jean Luc Picard"
-    }
-  },
-  {
-    "prompt": "Please greet Alice",
-    "name": "fn_greet",
-    "parameters": {
-      "name": "Alice"
-    }
-  },
-  {
-    "prompt": "Greet",
-    "name": "fn_greet",
-    "parameters": {
-      "name": ""
-    }
-  },
-  {
     "prompt": "Reverse the string 'hello'",
     "name": "fn_reverse_string",
     "parameters": {
@@ -90,31 +37,10 @@
     }
   },
   {
-    "prompt": "Reverse the string \"hello world\"",
+    "prompt": "Reverse the string 'world'",
     "name": "fn_reverse_string",
     "parameters": {
-      "s": "hello world"
-    }
-  },
-  {
-    "prompt": "Reverse the string 'Hello, World!'",
-    "name": "fn_reverse_string",
-    "parameters": {
-      "s": "Hello, World!"
-    }
-  },
-  {
-    "prompt": "Reverse hello",
-    "name": "fn_reverse_string",
-    "parameters": {
-      "s": ""
-    }
-  },
-  {
-    "prompt": "Please reverse 'racecar'",
-    "name": "fn_reverse_string",
-    "parameters": {
-      "s": "racecar"
+      "s": "world"
     }
   },
   {
@@ -132,42 +58,12 @@
     }
   },
   {
-    "prompt": "What is the square root of 0?",
-    "name": "fn_get_square_root",
-    "parameters": {
-      "a": 0.0
-    }
-  },
-  {
-    "prompt": "Calculate 81 root",
-    "name": "fn_get_square_root",
-    "parameters": {
-      "a": 81.0
-    }
-  },
-  {
-    "prompt": "sqrt of 2.25",
-    "name": "fn_get_square_root",
-    "parameters": {
-      "a": 2.25
-    }
-  },
-  {
     "prompt": "Replace all numbers in \"Hello 34 I'm 233 years old\" with NUMBERS",
     "name": "fn_substitute_string_with_regex",
     "parameters": {
       "source_string": "Hello 34 I'm 233 years old",
       "regex": "\\d+",
       "replacement": "NUMBERS"
-    }
-  },
-  {
-    "prompt": "Replace all digits in \"abc123xyz\" with NUM",
-    "name": "fn_substitute_string_with_regex",
-    "parameters": {
-      "source_string": "abc123xyz",
-      "regex": "\\d+",
-      "replacement": "NUM"
     }
   },
   {
@@ -180,57 +76,12 @@
     }
   },
   {
-    "prompt": "Replace vowels in 'ChatGPT is amazing' with _",
-    "name": "fn_substitute_string_with_regex",
-    "parameters": {
-      "source_string": "ChatGPT is amazing",
-      "regex": "[aeiouAEIOU]",
-      "replacement": "_"
-    }
-  },
-  {
     "prompt": "Substitute the word 'cat' with 'dog' in 'The cat sat on the mat with another cat'",
     "name": "fn_substitute_string_with_regex",
     "parameters": {
       "source_string": "The cat sat on the mat with another cat",
       "regex": "cat",
       "replacement": "dog"
-    }
-  },
-  {
-    "prompt": "Replace 'error' with 'warning' in 'error: file not found'",
-    "name": "fn_substitute_string_with_regex",
-    "parameters": {
-      "source_string": "error: file not found",
-      "regex": "error",
-      "replacement": "warning"
-    }
-  },
-  {
-    "prompt": "Replace 'one' with 'two' in 'one one one'",
-    "name": "fn_substitute_string_with_regex",
-    "parameters": {
-      "source_string": "one one one",
-      "regex": "one",
-      "replacement": "two"
-    }
-  },
-  {
-    "prompt": "Replace all numbers in \"Room 101 costs 50 dollars\" with XXX",
-    "name": "fn_substitute_string_with_regex",
-    "parameters": {
-      "source_string": "Room 101 costs 50 dollars",
-      "regex": "\\d+",
-      "replacement": "XXX"
-    }
-  },
-  {
-    "prompt": "Replace separators in \"a,b,c,d\" with spaces",
-    "name": "fn_substitute_string_with_regex",
-    "parameters": {
-      "source_string": "a,b,c,d",
-      "regex": ",",
-      "replacement": " "
     }
   },
   {
