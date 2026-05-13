@@ -120,10 +120,10 @@ The selector builds a prompt containing:
 
 - available functions
 - descriptions
-- user request
+- user request managing limited storage environments on 42 Linux machines
 
 The model performs one forward pass and scores candidate functions using logits from the first distinguishing token after the shared `fn` prefix.
-
+ managing limited storage environments on 42 Linux machines
 Softmax converts scores into probabilities.
 
 Low-confidence prompts return:

@@ -15,18 +15,6 @@
     }
   },
   {
-    "name": "fn_get_square_root",
-    "description": "Calculate the square root of a number.",
-    "parameters": {
-      "a": {
-        "type": "number"
-      }
-    },
-    "returns": {
-      "type": "number"
-    }
-  },
-  {
     "name": "fn_greet",
     "description": "Generate a greeting message for a person by name.",
     "parameters": {
@@ -51,6 +39,18 @@
     }
   },
   {
+    "name": "fn_get_square_root",
+    "description": "Calculate the square root of a number.",
+    "parameters": {
+      "a": {
+        "type": "number"
+      }
+    },
+    "returns": {
+      "type": "number"
+    }
+  },
+  {
     "name": "fn_substitute_string_with_regex",
     "description": "Replace all occurrences matching a regex pattern in a string.",
     "parameters": {
@@ -62,50 +62,6 @@
       },
       "replacement": {
         "type": "string"
-      }
-    },
-    "returns": {
-      "type": "string"
-    }
-  },
-  {
-    "name": "fn_update_firmware",
-    "description": "Update the device firmware channel.",
-    "parameters": {
-      "firmware": {
-        "type": "string",
-        "enum": [
-          "stable",
-          "beta",
-          "nightly"
-        ]
-      }
-    },
-    "returns": {
-      "type": "string"
-    }
-  },
-  {
-    "name": "fn_set_notifications",
-    "description": "Enable or disable notifications.",
-    "parameters": {
-      "enabled": {
-        "type": "boolean"
-      }
-    },
-    "returns": {
-      "type": "boolean"
-    }
-  },
-  {
-    "name": "fn_repeat_message",
-    "description": "Repeat a message a number of times.",
-    "parameters": {
-      "message": {
-        "type": "string"
-      },
-      "times": {
-        "type": "integer"
       }
     },
     "returns": {
