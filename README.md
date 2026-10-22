@@ -1,3 +1,17 @@
+<div align="center">
+
+![Call Me Maybe — STRUCTURED OUTPUT / FUNCTION CALLING](docs/showcase/hero.svg)
+
+**Schema-aware function calling with logits-based selection and constrained JSON generation.**
+
+[Explore the documentation](#project-documentation) · [Browse source](https://github.com/Psyche0920/Python_callmemaybe/tree/main)
+
+</div>
+
+![Call Me Maybe conceptual workflow](docs/showcase/workflow.svg)
+
+<a id="project-documentation"></a>
+
 # Call Me Maybe
 *This project was created as part of the 42 curriculum by wehan.*
 
@@ -120,10 +134,10 @@ The selector builds a prompt containing:
 
 - available functions
 - descriptions
-- user request managing limited storage environments on 42 Linux machines
+- user request
 
 The model performs one forward pass and scores candidate functions using logits from the first distinguishing token after the shared `fn` prefix.
- managing limited storage environments on 42 Linux machines
+
 Softmax converts scores into probabilities.
 
 Low-confidence prompts return:
@@ -225,7 +239,7 @@ Main implementation challenges included:
 - maintaining valid JSON structure during constrained decoding
 - handling tokenizer vocabulary boundaries during token filtering
 - balancing deterministic generation with model-based scoring
-- managing limited storage environments on 42 Linux machines
+-
 
 ---
 
